@@ -23,9 +23,9 @@ There is no application server or database in the current project. The browser c
 ## Runtime structure
 
 - **HTML shell — `index.html`:** Provides the `root` mount element and loads `/src/main.jsx`. Its document title is still the Vite starter title.
-- **React entrypoint — `src/main.jsx`:** Creates the React root, renders `App` inside `React.StrictMode`, and imports the global stylesheet.
-- **Application — `src/App.jsx`:** Contains the complete page, address input, query action, Alchemy request logic, local state, and token-balance results grid.
-- **Global styles — `src/index.css`:** Defines starter CSS for the page and browser defaults. Most layout and component styling is supplied through Chakra UI props in `App.jsx`.
+- **React entrypoint — `src/main.jsx`:** Creates the React root, renders `App` inside `React.StrictMode` and `ChakraProvider`, and supplies the shared dark theme.
+- **Application — `src/App.jsx`:** Contains the responsive dashboard, address input, query action, Alchemy request logic, local state, and token-balance results grid.
+- **Global styles — `src/index.css`:** Provides minimal browser defaults; Chakra UI supplies the component reset and most visual styling.
 - **Build and development — `vite.config.js`, `package.json`:** Vite with the React plugin provides the development server and production build. Available scripts are `dev`, `build`, and `preview`.
 
 ## Query and rendering flow
@@ -64,6 +64,7 @@ Because Vite substitutes `VITE_` variables into client-side code, the configured
 ## Operational behavior and known gaps
 
 - The only configured network is Ethereum Mainnet.
+- The responsive Chakra UI presents address lookup, query status, and token cards in a dark dashboard layout.
 - The UI now validates the address, shows loading and request-error states, and renders an empty state when no tokens are returned.
 - Per-token SDK errors or missing decimals are shown as unavailable balance data rather than being formatted or dereferenced blindly.
 - The app has no wallet integration, ENS support, persistence, backend, or test script in `package.json`.
