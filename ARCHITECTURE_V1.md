@@ -4,7 +4,7 @@
 
 ## Purpose and scope
 
-The app is a browser-based React interface for looking up ERC-20 token balances for an Ethereum address. It uses Alchemy's Enhanced APIs through the Alchemy SDK. The README intentionally presents it as a minimal starter project and lists possible improvements; wallet connection, ENS resolution, and the other suggested features are not implemented.
+The app is a browser-based React interface for looking up ERC-20 token balances for an Ethereum address or ENS name. It uses Alchemy's Enhanced APIs through the Alchemy SDK. The README intentionally presents it as a minimal starter project and lists possible improvements; wallet connection and the other suggested features are not implemented.
 
 ## System context
 
@@ -22,7 +22,7 @@ There is no application server or database in the current project. The browser c
 
 ## Runtime structure
 
-- **HTML shell — `index.html`:** Provides the `root` mount element and loads `/src/main.jsx`. Its document title is still the Vite starter title.
+- **HTML shell — `index.html`:** Provides the `root` mount element, loads `/src/main.jsx`, and sets the document title to “ERC-20 Token Indexer”.
 - **React entrypoint — `src/main.jsx`:** Creates the React root, renders `App` inside `React.StrictMode` and `ChakraProvider`, and supplies the shared dark theme.
 - **Application — `src/App.jsx`:** Contains the responsive dashboard, address input, query action, Alchemy request logic, local state, and token-balance results grid.
 - **Global styles — `src/index.css`:** Provides minimal browser defaults; Chakra UI supplies the component reset and most visual styling.
@@ -32,8 +32,8 @@ There is no application server or database in the current project. The browser c
 
 1. The input's change handler stores the entered address in `userAddress`.
 2. Clicking the button calls `getTokenBalance()`.
-3. The app validates the address and confirms that `VITE_ALCHEMY_API_KEY` is configured before making a request.
-4. The app calls `alchemy.core.getTokensForOwner()` for Ethereum Mainnet. This API returns owned ERC-20 balances with their metadata together, avoiding a separate metadata request for every token.
+3. The app confirms that `VITE_ALCHEMY_API_KEY` is configured. If the input is not already an Ethereum address, it resolves the input with `alchemy.core.resolveName()`. An unresolved name is shown as a query error.
+4. The app calls `alchemy.core.getTokensForOwner()` with the resulting Ethereum address. This API returns owned ERC-20 balances with their metadata together, avoiding a separate metadata request for every token.
 5. The app follows response page keys until all pages are retrieved, then stores the complete token list in one query-state update. Token balances are formatted with `Utils.formatUnits()` when raw balance and decimals are available.
 
 ## State and data
@@ -46,6 +46,7 @@ Application state is local to the `App` component:
 | `queryState.status` | Tracks idle, loading, success, or error state |
 | `queryState.tokens` | Complete list of token balances and metadata for a successful query |
 | `queryState.error` | User-visible validation or request error |
+| `queryState.resolvedName` / `queryState.resolvedAddress` | Resolved ENS name and address, when the input was an ENS name |
 
 No query or address is persisted, and there is no shared state layer or caching outside the SDK.
 
@@ -64,10 +65,11 @@ Because Vite substitutes `VITE_` variables into client-side code, the configured
 ## Operational behavior and known gaps
 
 - The only configured network is Ethereum Mainnet.
+- Inputs may be Ethereum addresses or ENS names; resolved ENS names display their address alongside the results.
 - The responsive Chakra UI presents address lookup, query status, and token cards in a dark dashboard layout.
-- The UI now validates the address, shows loading and request-error states, and renders an empty state when no tokens are returned.
+- The UI validates non-empty input, resolves ENS names, shows loading and request-error states, and renders an empty state when no tokens are returned.
 - Per-token SDK errors or missing decimals are shown as unavailable balance data rather than being formatted or dereferenced blindly.
-- The app has no wallet integration, ENS support, persistence, backend, or test script in `package.json`.
+- The app has no wallet integration, persistence, backend, or test script in `package.json`.
 - The Alchemy key remains client-visible because Vite exposes `VITE_` variables in the browser bundle.
 
 These are observations about the current implementation, not a roadmap or commitment to a specific solution.

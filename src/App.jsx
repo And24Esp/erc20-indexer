@@ -14,7 +14,6 @@ import {
   Image,
   Input,
   InputGroup,
-  InputLeftElement,
   SimpleGrid,
   Skeleton,
   Stack,
@@ -31,16 +30,20 @@ function App() {
     status: 'idle',
     tokens: [],
     error: '',
+    resolvedAddress: '',
+    resolvedName: '',
   });
 
   async function getTokenBalance() {
-    const address = userAddress.trim();
+    const input = userAddress.trim();
 
-    if (!ethersUtils.isAddress(address)) {
+    if (!input) {
       setQueryState({
         status: 'error',
         tokens: [],
-        error: 'Enter a valid Ethereum address.',
+        error: 'Enter an Ethereum address or ENS name.',
+        resolvedAddress: '',
+        resolvedName: '',
       });
       return;
     }
@@ -51,17 +54,43 @@ function App() {
         status: 'error',
         tokens: [],
         error: 'Alchemy API key is missing. Set VITE_ALCHEMY_API_KEY in .env.',
+        resolvedAddress: '',
+        resolvedName: '',
       });
       return;
     }
 
-    setQueryState({ status: 'loading', tokens: [], error: '' });
+    setQueryState({
+      status: 'loading',
+      tokens: [],
+      error: '',
+      resolvedAddress: '',
+      resolvedName: '',
+    });
 
     try {
       const alchemy = new Alchemy({
         apiKey,
         network: Network.ETH_MAINNET,
       });
+      let address = input;
+      let resolvedName = '';
+
+      if (!ethersUtils.isAddress(input)) {
+        address = await alchemy.core.resolveName(input);
+        if (!address) {
+          throw new Error(
+            `ENS name "${input}" did not resolve to an Ethereum address.`
+          );
+        }
+        resolvedName = input;
+      }
+      if (!ethersUtils.isAddress(address)) {
+        throw new Error(
+          'The input did not resolve to a valid Ethereum address.'
+        );
+      }
+
       const tokens = [];
       let pageKey;
 
@@ -74,15 +103,25 @@ function App() {
         pageKey = page.pageKey;
       } while (pageKey);
 
-      setQueryState({ status: 'success', tokens, error: '' });
+      setQueryState({
+        status: 'success',
+        tokens,
+        error: '',
+        resolvedAddress: address,
+        resolvedName,
+      });
     } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'An unexpected error occurred while loading token balances.';
+
       setQueryState({
         status: 'error',
         tokens: [],
-        error:
-          error instanceof Error
-            ? error.message
-            : 'An unexpected error occurred while loading token balances.',
+        error: errorMessage.split(apiKey).join('[redacted]'),
+        resolvedAddress: '',
+        resolvedName: '',
       });
     }
   }
@@ -201,10 +240,10 @@ function App() {
                 <Flex align="start" justify="space-between" gap={4}>
                   <Stack spacing={1}>
                     <Heading as="h2" size="md">
-                      Look up an address
+                      Look up a wallet
                     </Heading>
                     <Text color="gray.400" fontSize="sm">
-                      Enter a public Ethereum wallet address to get started.
+                      Enter an Ethereum address or ENS name.
                     </Text>
                   </Stack>
                   <Badge colorScheme="teal" variant="subtle" borderRadius="full">
@@ -213,18 +252,12 @@ function App() {
                 </Flex>
                 <Flex direction={{ base: 'column', sm: 'row' }} gap={3}>
                   <InputGroup size="lg" flex="1">
-                    <InputLeftElement pointerEvents="none" w="3.5rem">
-                      <Text color="gray.500" fontSize="sm" fontWeight="medium">
-                        0x
-                      </Text>
-                    </InputLeftElement>
                     <Input
-                      aria-label="Ethereum address"
+                      aria-label="Ethereum address or ENS name"
                       onChange={(e) => setUserAddress(e.target.value)}
                       value={userAddress}
-                      placeholder="Paste an Ethereum address"
+                      placeholder="Address or name.eth"
                       isDisabled={queryState.status === 'loading'}
-                      pl="3.5rem"
                       bg="whiteAlpha.50"
                       borderColor="whiteAlpha.200"
                       borderRadius="xl"
@@ -254,8 +287,8 @@ function App() {
                     ●
                   </Text>
                   <Text>
-                    Read-only lookup. Your address is sent to Alchemy and not
-                    persisted by this app.
+                    Addresses and ENS names are sent to Alchemy for lookup and
+                    are not persisted by this app.
                   </Text>
                 </HStack>
               </Stack>
@@ -278,6 +311,15 @@ function App() {
                     ? 'Your on-chain ERC-20 holdings'
                     : 'Results will appear here after a lookup'}
                 </Text>
+                {queryState.status === 'success' &&
+                  queryState.resolvedName && (
+                    <Text color="gray.500" fontSize="xs">
+                      {queryState.resolvedName} resolves to{' '}
+                      <Text as="span" color="teal.200" fontFamily="mono">
+                        {queryState.resolvedAddress}
+                      </Text>
+                    </Text>
+                  )}
               </Stack>
               <Badge
                 px={3}
