@@ -32,22 +32,20 @@ There is no application server or database in the current project. The browser c
 
 1. The input's change handler stores the entered address in `userAddress`.
 2. Clicking the button calls `getTokenBalance()`.
-3. That function creates an Alchemy client configured with `Network.ETH_MAINNET` and `import.meta.env.VITE_ALCHEMY_API_KEY`, calls `alchemy.core.getTokenBalances(userAddress)`, and stores the response in `results`.
-4. It requests metadata for each returned token contract using `getTokenMetadata()` and `Promise.all`, then stores the metadata array in `tokenDataObjects`.
-5. Once both requests complete, `hasQueried` is set. The component maps `results.tokenBalances` to cards, pairs each balance with metadata by array index, and formats the raw balance using `Utils.formatUnits()` and the token's decimals.
-
-The metadata requests are issued concurrently. The code does not currently filter zero balances, paginate results, or perform additional sorting.
+3. The app validates the address and confirms that `VITE_ALCHEMY_API_KEY` is configured before making a request.
+4. The app calls `alchemy.core.getTokensForOwner()` for Ethereum Mainnet. This API returns owned ERC-20 balances with their metadata together, avoiding a separate metadata request for every token.
+5. The app follows response page keys until all pages are retrieved, then stores the complete token list in one query-state update. Token balances are formatted with `Utils.formatUnits()` when raw balance and decimals are available.
 
 ## State and data
 
-All application state is local to the `App` component:
+Application state is local to the `App` component:
 
 | State | Role |
 | --- | --- |
 | `userAddress` | Current input value |
-| `results` | Response from the token-balance query |
-| `tokenDataObjects` | Metadata responses corresponding by index to the returned balances |
-| `hasQueried` | Controls whether the results grid or initial prompt is displayed |
+| `queryState.status` | Tracks idle, loading, success, or error state |
+| `queryState.tokens` | Complete list of token balances and metadata for a successful query |
+| `queryState.error` | User-visible validation or request error |
 
 No query or address is persisted, and there is no shared state layer or caching outside the SDK.
 
@@ -57,7 +55,7 @@ No query or address is persisted, and there is no shared state layer or caching 
 - **Chakra UI 2** supplies the components used for layout and controls.
 - **Alchemy SDK 2** provides token balance and token metadata API calls.
 - **Vite 4** and `@vitejs/plugin-react` power local development and bundling.
-- **ethers 5** is declared as a dependency; the visible app uses `Utils` from `alchemy-sdk` for unit formatting.
+- **ethers 5** provides address validation; `Utils` from `alchemy-sdk` formats token balances.
 
 The Alchemy API key is read from the `VITE_ALCHEMY_API_KEY` environment variable via Vite's `import.meta.env` in `src/App.jsx`. For local development, define that variable in the project-root `.env` file and restart the Vite dev server after changing it. The `.gitignore` excludes `.env` and other `.env.*` files while allowing a checked-in `.env.example`.
 
@@ -66,10 +64,10 @@ Because Vite substitutes `VITE_` variables into client-side code, the configured
 ## Operational behavior and known gaps
 
 - The only configured network is Ethereum Mainnet.
-- Requests have no visible loading state, validation, or explicit error handling.
-- The UI assumes that the balance query and every metadata request succeed, and that metadata ordering and token-balance ordering correspond.
+- The UI now validates the address, shows loading and request-error states, and renders an empty state when no tokens are returned.
+- Per-token SDK errors or missing decimals are shown as unavailable balance data rather than being formatted or dereferenced blindly.
 - The app has no wallet integration, ENS support, persistence, backend, or test script in `package.json`.
-- Responsive layout, empty/error states, and accessibility behavior have not been established as explicit requirements in this skeleton.
+- The Alchemy key remains client-visible because Vite exposes `VITE_` variables in the browser bundle.
 
 These are observations about the current implementation, not a roadmap or commitment to a specific solution.
 

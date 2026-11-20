@@ -9,40 +9,74 @@ import {
   SimpleGrid,
   Text,
 } from '@chakra-ui/react';
+import { utils as ethersUtils } from 'ethers';
 import { Alchemy, Network, Utils } from 'alchemy-sdk';
 import { useState } from 'react';
 
 function App() {
   const [userAddress, setUserAddress] = useState('');
-  const [results, setResults] = useState([]);
-  const [hasQueried, setHasQueried] = useState(false);
-  const [tokenDataObjects, setTokenDataObjects] = useState([]);
+  const [queryState, setQueryState] = useState({
+    status: 'idle',
+    tokens: [],
+    error: '',
+  });
 
   async function getTokenBalance() {
-    const config = {
-      apiKey: import.meta.env.VITE_ALCHEMY_API_KEY,
-      network: Network.ETH_MAINNET,
-    };
+    const address = userAddress.trim();
 
-    const alchemy = new Alchemy(config);
-    const data = await alchemy.core.getTokenBalances(userAddress);
-
-    setResults(data);
-
-    const tokenDataPromises = [];
-
-    for (let i = 0; i < data.tokenBalances.length; i++) {
-      const tokenData = alchemy.core.getTokenMetadata(
-        data.tokenBalances[i].contractAddress
-      );
-      tokenDataPromises.push(tokenData);
+    if (!ethersUtils.isAddress(address)) {
+      setQueryState({
+        status: 'error',
+        tokens: [],
+        error: 'Enter a valid Ethereum address.',
+      });
+      return;
     }
 
-    setTokenDataObjects(await Promise.all(tokenDataPromises));
-    setHasQueried(true);
+    const apiKey = import.meta.env.VITE_ALCHEMY_API_KEY?.trim();
+    if (!apiKey) {
+      setQueryState({
+        status: 'error',
+        tokens: [],
+        error: 'Alchemy API key is missing. Set VITE_ALCHEMY_API_KEY in .env.',
+      });
+      return;
+    }
+
+    setQueryState({ status: 'loading', tokens: [], error: '' });
+
+    try {
+      const alchemy = new Alchemy({
+        apiKey,
+        network: Network.ETH_MAINNET,
+      });
+      const tokens = [];
+      let pageKey;
+
+      do {
+        const page = await alchemy.core.getTokensForOwner(
+          address,
+          pageKey ? { pageKey } : undefined
+        );
+        tokens.push(...page.tokens);
+        pageKey = page.pageKey;
+      } while (pageKey);
+
+      setQueryState({ status: 'success', tokens, error: '' });
+    } catch (error) {
+      setQueryState({
+        status: 'error',
+        tokens: [],
+        error:
+          error instanceof Error
+            ? error.message
+            : 'An unexpected error occurred while loading token balances.',
+      });
+    }
   }
+
   return (
-    <Box w="100vw">
+    <Box w="100%">
       <Center>
         <Flex
           alignItems={'center'}
@@ -68,49 +102,93 @@ function App() {
           Get all the ERC-20 token balances of this address:
         </Heading>
         <Input
+          aria-label="Ethereum address"
           onChange={(e) => setUserAddress(e.target.value)}
+          value={userAddress}
           color="black"
-          w="600px"
+          w="min(600px, 90vw)"
           textAlign="center"
           p={4}
           bgColor="white"
           fontSize={24}
+          placeholder="0x..."
+          isDisabled={queryState.status === 'loading'}
         />
-        <Button fontSize={20} onClick={getTokenBalance} mt={36} bgColor="blue">
+        <Button
+          fontSize={20}
+          onClick={getTokenBalance}
+          mt={36}
+          bgColor="blue"
+          isLoading={queryState.status === 'loading'}
+          loadingText="Loading balances"
+        >
           Check ERC-20 Token Balances
         </Button>
 
         <Heading my={36}>ERC-20 token balances:</Heading>
 
-        {hasQueried ? (
-          <SimpleGrid w={'90vw'} columns={4} spacing={24}>
-            {results.tokenBalances.map((e, i) => {
-              return (
-                <Flex
-                  flexDir={'column'}
-                  color="white"
-                  bg="blue"
-                  w={'20vw'}
-                  key={e.id}
-                >
-                  <Box>
-                    <b>Symbol:</b> ${tokenDataObjects[i].symbol}&nbsp;
-                  </Box>
-                  <Box>
-                    <b>Balance:</b>&nbsp;
-                    {Utils.formatUnits(
-                      e.tokenBalance,
-                      tokenDataObjects[i].decimals
-                    )}
-                  </Box>
-                  <Image src={tokenDataObjects[i].logo} />
-                </Flex>
-              );
-            })}
-          </SimpleGrid>
-        ) : (
-          'Please make a query! This may take a few seconds...'
+        {queryState.status === 'idle' && (
+          <Text>Please enter an address and run a query.</Text>
         )}
+
+        {queryState.status === 'error' && (
+          <Text role="alert" color="red.300">
+            {queryState.error}
+          </Text>
+        )}
+
+        {queryState.status === 'success' &&
+          (queryState.tokens.length === 0 ? (
+            <Text>No ERC-20 token balances found.</Text>
+          ) : (
+            <SimpleGrid
+              w="90vw"
+              columns={{ base: 1, sm: 2, lg: 4 }}
+              spacing={6}
+            >
+              {queryState.tokens.map((token) => {
+                const formattedBalance =
+                  !token.error &&
+                  token.rawBalance !== undefined &&
+                  Number.isInteger(token.decimals)
+                    ? Utils.formatUnits(token.rawBalance, token.decimals)
+                    : null;
+
+                return (
+                  <Flex
+                    flexDir="column"
+                    color="white"
+                    bg="blue"
+                    w="100%"
+                    minW={0}
+                    p={4}
+                    key={token.contractAddress}
+                  >
+                    <Box overflowWrap="anywhere">
+                      <b>Token:</b>{' '}
+                      {token.symbol || token.name || token.contractAddress}
+                    </Box>
+                    <Box overflowWrap="anywhere">
+                      <b>Balance:</b> {formattedBalance ?? 'Unavailable'}
+                    </Box>
+                    {token.error && (
+                      <Text role="status" overflowWrap="anywhere">
+                        Token data unavailable: {token.error}
+                      </Text>
+                    )}
+                    {token.logo && (
+                      <Image
+                        src={token.logo}
+                        alt={`${token.symbol || 'Token'} logo`}
+                        maxH="100px"
+                        objectFit="contain"
+                      />
+                    )}
+                  </Flex>
+                );
+              })}
+            </SimpleGrid>
+          ))}
       </Flex>
     </Box>
   );
