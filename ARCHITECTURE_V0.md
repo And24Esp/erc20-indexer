@@ -1,4 +1,4 @@
-# Architecture (current-state snapshot)
+# Architecture (original-state snapshot)
 
 **Status:** Initial snapshot of the skeleton application. This document describes the code currently in the repository, not a target design. Update it as the app grows.
 
