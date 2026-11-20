@@ -71,6 +71,7 @@ Because Vite substitutes `VITE_` variables into client-side code, the configured
 - Per-token SDK errors or missing decimals are shown as unavailable balance data rather than being formatted or dereferenced blindly.
 - The app has no wallet integration, persistence, backend, or test script in `package.json`.
 - The Alchemy key remains client-visible because Vite exposes `VITE_` variables in the browser bundle.
+- A browser test confirmed the 'vitalik.eth' ENS resolved and reached the token lookup, but Alchemy rate-limited the subsequent paginated balance request (HTTP 429), so we couldn’t verify the completed results. The live preview rendered without React errors after reload.
 
 These are observations about the current implementation, not a roadmap or commitment to a specific solution.
 
